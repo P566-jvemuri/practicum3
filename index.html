@@ -11,16 +11,18 @@
             margin: 0 auto;
             padding: 20px;
             line-height: 1.6;
+            background-color: #222;
+            color: white;
         }
         h1 {
             text-align: center;
-            color: #333;
+            color: white;
         }
         .container {
-            background-color: #f5f5f5;
+            background-color: #333;
             border-radius: 5px;
             padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         .form-group {
             margin-bottom: 15px;
@@ -33,9 +35,11 @@
         input {
             width: 100%;
             padding: 8px;
-            border: 1px solid #ddd;
+            border: 1px solid #555;
             border-radius: 4px;
             box-sizing: border-box;
+            background-color: #222;
+            color: white;
         }
         button {
             background-color: #4CAF50;
@@ -59,14 +63,14 @@
             border-radius: 4px;
         }
         .success {
-            background-color: #dff0d8;
-            border: 1px solid #d6e9c6;
-            color: #3c763d;
+            background-color: #2d682c;
+            border: 1px solid #2d5e2c;
+            color: white;
         }
         .error {
-            background-color: #f2dede;
-            border: 1px solid #ebccd1;
-            color: #a94442;
+            background-color: #882020;
+            border: 1px solid #771c1c;
+            color: white;
         }
         .status {
             text-align: center;
@@ -94,6 +98,7 @@
                 <input type="password" id="password" placeholder="Enter password">
             </div>
             <button id="login-btn">Login</button>
+            <div id="login-result" class="result hidden"></div>
         </div>
         
         <div id="prime-checker" class="hidden">
@@ -116,6 +121,7 @@
         const primeChecker = document.getElementById('prime-checker');
         const authStatus = document.getElementById('auth-status');
         const resultDiv = document.getElementById('result');
+        const loginResultDiv = document.getElementById('login-result');
         
         // Login button click handler
         document.getElementById('login-btn').addEventListener('click', async () => {
@@ -123,12 +129,14 @@
             const password = document.getElementById('password').value;
             
             if (!username || !password) {
-                showResult('Please enter both username and password', 'error');
+                showLoginResult('Please enter both username and password', 'error');
                 return;
             }
             
             try {
-                const response = await fetch('http://localhost:8080/auth/login', {
+                console.log("Attempting login with:", { username, password });
+                
+                const response = await fetch('http://localhost:8080/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -136,22 +144,32 @@
                     body: JSON.stringify({ username, password })
                 });
                 
+                console.log("Login response status:", response.status);
+                
                 if (!response.ok) {
                     throw new Error(`Login failed: ${response.status} ${response.statusText}`);
                 }
                 
-                const data = await response.json();
-                authToken = data.token;
+                // Get the token as plain text (not JSON)
+                const token = await response.text();
+                console.log("Received token:", token.substring(0, 20) + "...");
+                
+                if (!token) {
+                    throw new Error("No token received from server");
+                }
+                
+                // Store the token
+                authToken = token;
                 
                 // Show the prime checker form and hide login form
                 loginForm.classList.add('hidden');
                 primeChecker.classList.remove('hidden');
                 authStatus.textContent = 'Logged in successfully';
-                authStatus.style.color = '#3c763d';
+                authStatus.style.color = '#4CAF50';
                 
             } catch (error) {
                 console.error('Login error:', error);
-                showResult(`Authentication failed: ${error.message}`, 'error');
+                showLoginResult(`Authentication failed: ${error.message}`, 'error');
             }
         });
         
@@ -166,12 +184,16 @@
             }
             
             try {
-                const response = await fetch(`http://localhost:8080/prime/${number}`, {
+                console.log(`Checking if ${number} is prime with token: ${authToken.substring(0, 20)}...`);
+                
+                const response = await fetch(`http://localhost:8080/primes/${number}`, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${authToken}`
                     }
                 });
+                
+                console.log("Prime check response status:", response.status);
                 
                 if (!response.ok) {
                     if (response.status === 401) {
@@ -181,6 +203,7 @@
                 }
                 
                 const data = await response.json();
+                console.log("Prime check response:", data);
                 
                 if (data.isPrime) {
                     showResult(`${number} is a prime number!`, 'success');
@@ -204,11 +227,18 @@
             logout();
         });
         
-        // Helper function to display results
+        // Helper function to display prime check results
         function showResult(message, type) {
             resultDiv.textContent = message;
             resultDiv.className = `result ${type}`;
             resultDiv.classList.remove('hidden');
+        }
+        
+        // Helper function to display login results
+        function showLoginResult(message, type) {
+            loginResultDiv.textContent = message;
+            loginResultDiv.className = `result ${type}`;
+            loginResultDiv.classList.remove('hidden');
         }
         
         // Helper function to handle logout
@@ -222,6 +252,7 @@
             document.getElementById('password').value = '';
             document.getElementById('number').value = '';
             resultDiv.classList.add('hidden');
+            loginResultDiv.classList.add('hidden');
         }
     </script>
 </body>
