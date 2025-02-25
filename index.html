@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prime Number Checker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .container {
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #dff0d8;
+            border: 1px solid #d6e9c6;
+            color: #3c763d;
+        }
+        .error {
+            background-color: #f2dede;
+            border: 1px solid #ebccd1;
+            color: #a94442;
+        }
+        .status {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Prime Number Checker</h1>
+    
+    <div class="container">
+        <div class="status" id="auth-status">Not logged in</div>
+        
+        <div id="login-form">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" placeholder="Enter username">
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" placeholder="Enter password">
+            </div>
+            <button id="login-btn">Login</button>
+        </div>
+        
+        <div id="prime-checker" class="hidden">
+            <div class="form-group">
+                <label for="number">Enter a number to check if it's prime:</label>
+                <input type="number" id="number" min="1" placeholder="Enter a positive integer">
+            </div>
+            <button id="check-btn">Check Prime</button>
+            <div id="result" class="result hidden"></div>
+            <button id="logout-btn" style="margin-top: 15px; background-color: #f44336;">Logout</button>
+        </div>
+    </div>
+
+    <script>
+        // Global variable to store the auth token
+        let authToken = null;
+        
+        // DOM Elements
+        const loginForm = document.getElementById('login-form');
+        const primeChecker = document.getElementById('prime-checker');
+        const authStatus = document.getElementById('auth-status');
+        const resultDiv = document.getElementById('result');
+        
+        // Login button click handler
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                showResult('Please enter both username and password', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://localhost:8080/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Login failed: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                authToken = data.token;
+                
+                // Show the prime checker form and hide login form
+                loginForm.classList.add('hidden');
+                primeChecker.classList.remove('hidden');
+                authStatus.textContent = 'Logged in successfully';
+                authStatus.style.color = '#3c763d';
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                showResult(`Authentication failed: ${error.message}`, 'error');
+            }
+        });
+        
+        // Check prime button click handler
+        document.getElementById('check-btn').addEventListener('click', async () => {
+            const numberInput = document.getElementById('number');
+            const number = parseInt(numberInput.value);
+            
+            if (isNaN(number) || number < 1) {
+                showResult('Please enter a valid positive integer', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`http://localhost:8080/prime/${number}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('Unauthorized. Please login again.');
+                    }
+                    throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.isPrime) {
+                    showResult(`${number} is a prime number!`, 'success');
+                } else {
+                    showResult(`${number} is not a prime number.`, 'success');
+                }
+                
+            } catch (error) {
+                console.error('API error:', error);
+                showResult(`Error: ${error.message}`, 'error');
+                
+                if (error.message.includes('Unauthorized')) {
+                    // If unauthorized, go back to login
+                    logout();
+                }
+            }
+        });
+        
+        // Logout button click handler
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            logout();
+        });
+        
+        // Helper function to display results
+        function showResult(message, type) {
+            resultDiv.textContent = message;
+            resultDiv.className = `result ${type}`;
+            resultDiv.classList.remove('hidden');
+        }
+        
+        // Helper function to handle logout
+        function logout() {
+            authToken = null;
+            loginForm.classList.remove('hidden');
+            primeChecker.classList.add('hidden');
+            authStatus.textContent = 'Not logged in';
+            authStatus.style.color = '';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('number').value = '';
+            resultDiv.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
